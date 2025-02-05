@@ -45,12 +45,12 @@ func getReceiptPoints(c *gin.Context) {
 
 	for _, receipt := range receipts {
 		if receipt.ID == id {
-			c.IndentedJSON(http.StatusAccepted, gin.H{"points": receipt.Points})
+			c.JSON(http.StatusAccepted, gin.H{"points": receipt.Points})
 			return
 		}
 	}
 
-	c.IndentedJSON(http.StatusNotFound, gin.H{"message": "No receipt found for that ID."})
+	c.JSON(http.StatusNotFound, gin.H{"message": "No receipt found for that ID."})
 }
 
 // Takes a given JSON receipt,
@@ -58,7 +58,7 @@ func postReceipt(c *gin.Context) {
 	var newReceipt Receipt
 
 	if err := c.BindJSON(&newReceipt); err != nil {
-		c.IndentedJSON(http.StatusBadRequest, gin.H{"message": "The receipt is invalid."})
+		c.JSON(http.StatusBadRequest, gin.H{"message": "The receipt is invalid."})
 		return
 	}
 
@@ -72,7 +72,7 @@ func postReceipt(c *gin.Context) {
 	// Add the receipt to the list
 	receipts = append(receipts, newReceipt)
 
-	c.IndentedJSON(http.StatusCreated, gin.H{"id": id})
+	c.JSON(http.StatusCreated, gin.H{"id": id})
 }
 
 func calculatePoints(r Receipt) int {
