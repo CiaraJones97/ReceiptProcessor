@@ -10,27 +10,32 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/go-playground/validator/v10"
 	"github.com/google/uuid"
 )
 
 type Item struct {
-	ShortDescription string `json:"shortDescription"`
-	Price            string `json:"price"`
+	ShortDescription string `json:"shortDescription" validate:"required"`
+	Price            string `json:"price" validate:"required,numeric"`
 }
 
 type Receipt struct {
 	ID           string `json:"id,omitempty"`
-	Retailer     string `json:"retailer"`
-	PurchaseDate string `json:"purchaseDate"`
-	PurchaseTime string `json:"purchaseTime"`
-	Items        []Item `json:"items"`
-	Total        string `json:"total"`
+	Retailer     string `json:"retailer" validate:"required"`
+	PurchaseDate string `json:"purchaseDate" validate:"required,datetime=2006-01-02"`
+	PurchaseTime string `json:"purchaseTime" validate:"required,datetime=15:04"`
+	Items        []Item `json:"items" validate:"required,dive"`
+	Total        string `json:"total" validate:"required,numeric"`
 	Points       int    `json:"points,omitempty"`
 }
+
+var validate *validator.Validate
 
 var receipts []Receipt
 
 func main() {
+	validate = validator.New()
+
 	router := gin.Default()
 	router.GET("/receipts/:id/points", getReceiptPoints)
 	router.POST("/receipts/process", postReceipt)
@@ -58,6 +63,11 @@ func postReceipt(c *gin.Context) {
 	var newReceipt Receipt
 
 	if err := c.BindJSON(&newReceipt); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"message": "The receipt is invalid."})
+		return
+	}
+
+	if err := validate.Struct(newReceipt); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"message": "The receipt is invalid."})
 		return
 	}
