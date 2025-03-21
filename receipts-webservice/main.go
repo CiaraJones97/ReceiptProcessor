@@ -4,9 +4,7 @@ import (
 	"fmt"
 	"math"
 	"net/http"
-	"regexp"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -29,6 +27,16 @@ type Receipt struct {
 	Points       int    `json:"points,omitempty"`
 }
 
+type ReceiptQueryParams struct {
+	PointsGreater  int    `form:"points_greater_than" validate:"omitempty,numeric,gte=0"`
+	PurchasedAfter string `form:"purchased_after" validate:"omitempty,datetime=2006-01-02 15:04"`
+}
+
+type ReceiptQueryReturn struct {
+	ReceiptsReturned int       `json:"resultsReturned"`
+	Receipts         []Receipt `json:"receipts"`
+}
+
 var validate *validator.Validate
 
 var receipts []Receipt
@@ -38,6 +46,7 @@ func main() {
 
 	router := gin.Default()
 	router.GET("/receipts/:id/points", getReceiptPoints)
+	router.GET("/receipts/query", queryReceipt)
 	router.POST("/receipts/process", postReceipt)
 
 	fmt.Println("Server listening on port 8080")
@@ -85,47 +94,58 @@ func postReceipt(c *gin.Context) {
 	c.JSON(http.StatusCreated, gin.H{"id": id})
 }
 
+// Get receipts bases on specified criteria
+func queryReceipt(c *gin.Context) {
+	var params ReceiptQueryParams
+
+	if err := c.Bind(&params); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"message": "query format invalid"})
+		return
+	}
+
+	if err := validate.Struct(params); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"message": err.Error()})
+		return
+	}
+
+	resultQuery := searchReceipts(params.PointsGreater, params.PurchasedAfter)
+	message := []ReceiptQueryReturn{
+		{
+			ReceiptsReturned: len(resultQuery),
+			Receipts:         resultQuery,
+		},
+	}
+
+	c.JSON(http.StatusAccepted, gin.H{"result": message})
+
+}
+
+func searchReceipts(pointsGreater int, purchased string) []Receipt {
+	var resultQuery []Receipt
+
+	purchasedAfter, _ := time.Parse("2006-01-02 15:04", purchased)
+
+	for _, receipt := range receipts {
+		receiptPurchaseDateTime, _ := time.Parse("2006-01-02 15:04", (receipt.PurchaseDate + " " + receipt.PurchaseTime))
+
+		if receipt.Points >= pointsGreater && receiptPurchaseDateTime.After(purchasedAfter) {
+			resultQuery = append(resultQuery, receipt)
+		}
+	}
+
+	return resultQuery
+}
+
 func calculatePoints(r Receipt) int {
 	var points int = 0
 
-	//One point for every alphanumeric character in the retailer name.
-	re := regexp.MustCompile(`[a-zA-Z0-9]+`)
-	alphanumeric := re.FindAllString(r.Retailer, -1)
-	joined := strings.Join(alphanumeric, "")
-	points += len(joined)
-
-	//50 points if the total is a round dollar amount with no cents.
+	// Add the total rounded up to the points
 	total, _ := strconv.ParseFloat(r.Total, 64)
-	if total == math.Ceil(total) {
-		points += 50
-	}
-
-	//25 points if the total is a multiple of 0.25.
-	modTotal := math.Mod(total, 0.25)
-	if modTotal == 0.0 {
-		points += 25
-	}
+	points += int(math.Ceil(total))
 
 	//5 points for every two items on the receipt.
 	pairs := math.Floor(float64(len(r.Items) / 2))
 	points += (int(pairs) * 5)
-
-	// If the trimmed length of the item description is a multiple of 3, multiply the price by 0.2 and round up to the nearest integer.
-	// The result is the number of points earned.
-	for _, item := range r.Items {
-		trimmedDescription := strings.TrimSpace(item.ShortDescription)
-		if len(trimmedDescription)%3 == 0 {
-			itemPrice, _ := strconv.ParseFloat(item.Price, 64)
-			points += int(math.Ceil(itemPrice * 0.2))
-		}
-	}
-
-	// 6 points if the day in the purchase date is odd.
-	splitDate := strings.Split(r.PurchaseDate, "-")
-	day, _ := strconv.Atoi(splitDate[2])
-	if day%2 == 1 {
-		points += 6
-	}
 
 	// 10 points if the time of purchase is after 2:00pm and before 4:00pm.
 	startTime, _ := time.Parse("15:04", "14:00")

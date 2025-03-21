@@ -149,3 +149,68 @@ Returns the Points of the Receipt ID
 
 * 202 - Accepted: The Request ID has been accepted.
 * 404 - Not Found: The Request ID was not found.
+
+## GET /receipts/query
+
+### URL Format
+
+`curl http://localhost:8080/receipts/query?...`
+
+### Description
+
+Fetches receipts that match a given criteria. If no paramaters are added, all receipts are returned.
+
+### Parameters
+- `points_greater_than`
+    - Type: Integer
+    - Request receipts greater than or equal to a specified amount of points
+- `purchased_after`
+    - Type: Datetime
+    - Should be made in `YYYY-MM-DD HH:mm` format, example: `2024-01-01 10:00`
+
+### Example Curl Request:
+
+```cmd
+$ curl "http://localhost:8080/receipts/query?purchased_after=2023-01-01 10:00&points_greater_than=10"
+```
+
+### Response
+Returns a JSON with the resulting receipts
+
+```json
+{
+    "result": [
+        {
+            "resultsReturned":1,
+            "receipts": [
+                {
+                    "id":"jp2n4jh6-e17d-4411-bf3e-87be9e352db6","retailer":"Walgreens",
+                    "purchaseDate":"2024-03-20",
+                    "purchaseTime":"10:30",
+                    "items": [
+                        {
+                            "shortDescription":"Chips",
+                            "price":"2.00"
+                        },
+                        {
+                            "shortDescription":"Pepsi",
+                            "price":"5.00"
+                        },
+                        {
+                            "shortDescription":"Water",
+                            "price":"1.50"
+                        }
+                    ],
+                    "total":"8.00",
+                    "points":13
+                }
+            ]
+        }
+    ]
+}
+```
+
+### Status Codes
+
+* 202 - Accepted: The query has been accepted
+* 404 - Not Found: The query format is invalid
